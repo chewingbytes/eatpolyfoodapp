@@ -13,7 +13,6 @@
     "@expo-google-fonts/patrick-hand": "^0.4.1",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "@sanity/client": "^7.22.0",
     "@stripe/stripe-react-native": "^0.65.1",
     "@supabase/supabase-js": "^2.106.0",
     "babel-preset-expo": "~54.0.10",
