@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "node scripts/patch-supabase-otel.js"
   },
   "dependencies": {
     "@expo-google-fonts/kalam": "^0.4.1",
