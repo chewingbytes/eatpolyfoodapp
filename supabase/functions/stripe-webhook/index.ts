@@ -94,8 +94,7 @@ Deno.serve(async (req: Request) => {
   console.log("META:", meta);
 
   const storeSanityId: string = meta.store_sanity_id ?? "";
-  const studentName: string = meta.student_name || "Unknown";
-  const collectionTimeLabel: string = meta.collection_time || "As Soon As Possible";
+  const collectionTimeMeta: string = meta.collection_time || "";
   const itemsJson: string = meta.items_json ?? "[]";
   const expoPushToken: string = meta.expo_push_token ?? "";
   const userId: string = meta.user_id ?? "";
@@ -105,16 +104,19 @@ Deno.serve(async (req: Request) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
-  const timeOffsets: Record<string, number> = {
-    "As Soon As Possible": 15,
-    "In ~30 Minutes": 30,
-    "In ~1 Hour": 60,
-    "In ~2 Hours": 120,
-  };
-  const offsetMinutes = timeOffsets[collectionTimeLabel] ?? 15;
-  const collectionTime = new Date(
-    Date.now() + offsetMinutes * 60 * 1000
-  ).toISOString();
+  // Support ISO datetime (mobile, new format) and legacy label (web)
+  const isISOFormat = /^\d{4}-\d{2}-\d{2}T/.test(collectionTimeMeta);
+  const collectionTime = isISOFormat
+    ? new Date(collectionTimeMeta).toISOString()
+    : (() => {
+        const offsets: Record<string, number> = {
+          "As Soon As Possible": 15,
+          "In ~30 Minutes": 30,
+          "In ~1 Hour": 60,
+          "In ~2 Hours": 120,
+        };
+        return new Date(Date.now() + (offsets[collectionTimeMeta] ?? 15) * 60_000).toISOString();
+      })();
 
   let items: Array<{ name: string; qty: number }> = [];
   try {
@@ -134,10 +136,9 @@ Deno.serve(async (req: Request) => {
     store_sanity_id: storeSanityId,
     stripe_payment_intent_id: paymentIntentId,
     short_order_id: shortOrderId,
-    student_name: studentName,
     items,
     collection_time: collectionTime,
-    status: "paid",
+    status: "pending",
     ...(userId ? { user_id: userId } : {}),
   });
 
@@ -152,12 +153,12 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  console.log(`✅ Order ${shortOrderId} (${studentName}) for ${JSON.stringify(meta, null, 2)} → store ${storeSanityId}`);
-
+  console.log(`✅ Order ${shortOrderId} for ${JSON.stringify(meta, null, 2)} → store ${storeSanityId}`);
   // Send Expo push notification for mobile orders
   if (expoPushToken) {
     const collectionDate = new Date(collectionTime);
     const timeStr = collectionDate.toLocaleTimeString("en-SG", {
+      timeZone: "Asia/Singapore",
       hour: "2-digit",
       minute: "2-digit",
     });

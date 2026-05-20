@@ -35,7 +35,6 @@ Deno.serve(async (req: Request) => {
 
   let body: {
     items: { name: string; qty: number; priceInCents: number }[];
-    studentName: string;
     collectionTime: string;
     storeId: string;
     storeName: string;
@@ -52,7 +51,7 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const { items, studentName, collectionTime, storeId, expoPushToken, userId } = body;
+  const { items, collectionTime, storeId, expoPushToken, userId } = body;
 
 
   if (!items?.length) {
@@ -60,16 +59,6 @@ Deno.serve(async (req: Request) => {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  }
-
-  if (!studentName?.trim()) {
-    return new Response(
-      JSON.stringify({ error: "Student name is required" }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
   }
 
   if (!storeId) {
@@ -96,15 +85,50 @@ Deno.serve(async (req: Request) => {
   }
 
   const itemsJson = JSON.stringify(
-    items.map((i) => ({ name: cleanName(i.name), qty: i.qty }))
+    items.map((i) => ({ name: cleanName(i.name), qty: i.qty, priceInCents: i.priceInCents }))
   ).slice(0, 490);
 
-  const collectionTimeLabels: Record<string, string> = {
-    asap: "As Soon As Possible",
-    "30m": "In ~30 Minutes",
-    "1h": "In ~1 Hour",
-    "2h": "In ~2 Hours",
-  };
+  // --- Validate collection_time (ISO SGT datetime, e.g. "2026-05-21T11:00:00+08:00") ---
+  const collectionDt = new Date(collectionTime);
+  if (isNaN(collectionDt.getTime())) {
+    return new Response(JSON.stringify({ error: "Invalid collection time format" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Derive SGT equivalents (UTC+8) without any Intl dependency
+  const sgtOffsetMs = 8 * 60 * 60 * 1000;
+  const nowSGT = new Date(Date.now() + sgtOffsetMs);
+  const collectionSGT = new Date(collectionDt.getTime() + sgtOffsetMs);
+  const collectionHour = collectionSGT.getUTCHours();
+  const collectionMin = collectionSGT.getUTCMinutes();
+  const collectionDateStr = collectionSGT.toISOString().split("T")[0];
+
+  const todayStr = nowSGT.toISOString().split("T")[0];
+  const tomorrowStr = new Date(nowSGT.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const canOrderToday = nowSGT.getUTCHours() < 10;
+  const validDates = canOrderToday ? [todayStr, tomorrowStr] : [tomorrowStr];
+
+  if (!validDates.includes(collectionDateStr)) {
+    return new Response(
+      JSON.stringify({ error: "Today's ordering window has closed (cutoff: 10:00 AM). Please select tomorrow." }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const isValidTime =
+    collectionHour >= 11 &&
+    (collectionHour < 17 || (collectionHour === 17 && collectionMin === 0)) &&
+    (collectionMin === 0 || collectionMin === 30);
+
+  if (!isValidTime) {
+    return new Response(
+      JSON.stringify({ error: "Collection time must be between 11:00 AM and 5:00 PM in 30-minute slots" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+  // --- End validation ---
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: amountInCents,
@@ -112,9 +136,7 @@ Deno.serve(async (req: Request) => {
     payment_method_types: ["paynow"],
     metadata: {
       store_sanity_id: storeId,
-      student_name: cleanName(studentName.trim()),
-      collection_time:
-        collectionTimeLabels[collectionTime] ?? "As Soon As Possible",
+      collection_time: collectionTime,
       items_json: itemsJson,
       expo_push_token: expoPushToken ?? "",
       user_id: userId ?? "",

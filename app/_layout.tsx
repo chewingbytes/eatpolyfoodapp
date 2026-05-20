@@ -1,7 +1,6 @@
 import "../global.css";
 import React, { useEffect } from "react";
 
-// Suppress React 19 forwardRef dev warnings from incompatible third-party libs
 const _consoleError = console.error.bind(console);
 console.error = (...args: unknown[]) => {
   if (typeof args[0] === "string" && args[0].includes("forwardRef render functions accept exactly two parameters")) return;
@@ -84,7 +83,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(tabs)" options={{ title: "" }} />
         <Stack.Screen
           name="polytechnics/[slug]"
           options={{
@@ -137,6 +136,20 @@ export default function RootLayout() {
         <Stack.Screen
           name="checkout/success"
           options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="orders/[id]"
+          options={{
+            headerShown: true,
+            title: "Order Details",
+            headerStyle: { backgroundColor: colors.paper },
+            headerTitleStyle: { fontFamily: "Kalam_700Bold", color: colors.pencil },
+            headerTintColor: colors.pencil,
+          }}
+        />
+        <Stack.Screen
+          name="scan-store"
+          options={{ headerShown: false, presentation: "fullScreenModal" }}
         />
       </Stack>
       <StatusBar style="dark" />

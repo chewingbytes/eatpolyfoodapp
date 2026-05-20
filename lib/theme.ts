@@ -2,7 +2,7 @@
 // Adapted from the web design system for NativeWind + inline styles
 
 export const colors = {
-  paper: "#fdfbf7",
+  paper: "#FAF5F1",
   pencil: "#2d2d2d",
   muted: "#e5e0d8",
   accent: "#ff4d4d",

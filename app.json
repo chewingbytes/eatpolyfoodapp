@@ -7,6 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -17,11 +18,7 @@
       "bundleIdentifier": "com.foodatpoly.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Used for scanning QR codes",
-        "UIBackgroundModes": [
-          "remote-notification",
-          "remote-notification"
-        ],
-        "ITSAppUsesNonExemptEncryption": false
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
@@ -30,10 +27,9 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "NOTIFICATIONS"
-      ]
+      "permissions": ["NOTIFICATIONS", "CAMERA"]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -42,6 +38,7 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-camera",
       [
         "expo-notifications",
         {
@@ -55,11 +52,9 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
       "eas": {
         "projectId": "6a9fe9fc-ea35-4265-b221-8b56beb119e2"
       }
-    },
-    "owner": "chewingbytes"
+    }
   }
 }

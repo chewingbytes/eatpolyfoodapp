@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   StyleSheet,
@@ -11,24 +12,66 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCartStore } from "../../store/cart";
 import { WobblyCard } from "../../components/ui/WobblyCard";
-import { WobblyInput } from "../../components/ui/WobblyInput";
+
 import { HandButton } from "../../components/ui/HandButton";
 import { StickyBadge } from "../../components/ui/StickyBadge";
 import { colors, wobblyMd } from "../../lib/theme";
 
-type CollectionTime = "asap" | "30m" | "1h" | "2h";
-
-const COLLECTION_OPTIONS: { value: CollectionTime; label: string; emoji: string }[] = [
-  { value: "asap", label: "ASAP (~15 min)", emoji: "🔥" },
-  { value: "30m", label: "In ~30 min", emoji: "⏰" },
-  { value: "1h", label: "In ~1 hour", emoji: "🕐" },
-  { value: "2h", label: "In ~2 hours", emoji: "🕑" },
+const TIME_SLOTS = [
+  "11:00", "11:30", "12:00", "12:30",
+  "13:00", "13:30", "14:00", "14:30",
+  "15:00", "15:30", "16:00", "16:30",
+  "17:00",
 ];
+
+function formatSlot(slot: string): string {
+  const [h, m] = slot.split(":").map(Number);
+  const period = h < 12 ? "AM" : "PM";
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function toSGT(utc: Date, dayOffset = 0): Date {
+  return new Date(utc.getTime() + (8 * 60 * 60 * 1000) + (dayOffset * 24 * 60 * 60 * 1000));
+}
+
+function getSGTDateStr(utc: Date, dayOffset = 0): string {
+  return toSGT(utc, dayOffset).toISOString().split("T")[0];
+}
+
+async function fetchServerTime(): Promise<Date> {
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch("https://worldtimeapi.org/api/timezone/Asia/Singapore", {
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    const data = await res.json();
+    return new Date(data.datetime);
+  } catch {
+    return new Date();
+  }
+}
 
 export default function CartScreen() {
   const { items, removeItem, updateQty, totalCents } = useCartStore();
-  const [studentName, setStudentName] = useState("");
-  const [collectionTime, setCollectionTime] = useState<CollectionTime>("asap");
+  const [serverTime, setServerTime] = useState<Date | null>(null);
+  const [loadingTime, setLoadingTime] = useState(true);
+  const [canOrderToday, setCanOrderToday] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<"today" | "tomorrow">("tomorrow");
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchServerTime().then((t) => {
+      const sgtHour = toSGT(t).getUTCHours();
+      const before10am = sgtHour < 10;
+      setServerTime(t);
+      setCanOrderToday(before10am);
+      setSelectedDate(before10am ? "today" : "tomorrow");
+      setLoadingTime(false);
+    });
+  }, []);
 
   if (items.length === 0) {
     return (
@@ -53,11 +96,14 @@ export default function CartScreen() {
   const total = totalCents();
 
   function handleCheckout() {
-    if (!studentName.trim()) {
-      Alert.alert("Name required! ✏️", "Please enter your name so the stall knows who to call");
+    if (!selectedSlot) {
+      Alert.alert("Pick a time! ⏰", "Please select a collection time slot");
       return;
     }
-    router.push({ pathname: "/checkout", params: { studentName: studentName.trim(), collectionTime } });
+    const base = serverTime ?? new Date();
+    const dayOffset = selectedDate === "tomorrow" ? 1 : 0;
+    const collectionTime = `${getSGTDateStr(base, dayOffset)}T${selectedSlot}:00+08:00`;
+    router.push({ pathname: "/checkout", params: { collectionTime } });
   }
 
   return (
@@ -104,45 +150,55 @@ export default function CartScreen() {
         )}
         ListFooterComponent={
           <View style={styles.footer}>
-            {/* Student name */}
-            <WobblyCard style={styles.sectionCard} decoration="tape">
-              <Text style={styles.sectionTitle}>📝 your name</Text>
-              <WobblyInput
-                placeholder="e.g. Ahmad — so the stall can call you!"
-                value={studentName}
-                onChangeText={setStudentName}
-                autoComplete="name"
-              />
-            </WobblyCard>
-
             {/* Collection time */}
             <WobblyCard style={styles.sectionCard}>
               <Text style={styles.sectionTitle}>⏱️ when to collect?</Text>
-              <View style={styles.timeOptions}>
-                {COLLECTION_OPTIONS.map((opt) => {
-                  const selected = collectionTime === opt.value;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      onPress={() => setCollectionTime(opt.value)}
-                      style={[
-                        styles.timeOption,
-                        selected && styles.timeOptionSelected,
-                      ]}
-                    >
-                      <Text style={styles.timeEmoji}>{opt.emoji}</Text>
-                      <Text style={[styles.timeLabel, selected && styles.timeLabelSelected]}>
-                        {opt.label}
-                      </Text>
-                      {selected && (
-                        <View style={styles.timeTick}>
-                          <Ionicons name="checkmark" size={14} color={colors.white} />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              {loadingTime ? (
+                <View style={styles.timeLoading}>
+                  <ActivityIndicator size="small" color={colors.pencil + "77"} />
+                  <Text style={styles.timeLoadingText}>checking order window…</Text>
+                </View>
+              ) : (
+                <>
+                  {canOrderToday ? (
+                    <View style={styles.dateTabs}>
+                      {(["today", "tomorrow"] as const).map((d) => (
+                        <TouchableOpacity
+                          key={d}
+                          onPress={() => { setSelectedDate(d); setSelectedSlot(null); }}
+                          style={[styles.dateTab, selectedDate === d && styles.dateTabSelected]}
+                        >
+                          <Text style={[styles.dateTabLabel, selectedDate === d && styles.dateTabLabelSelected]}>
+                            {d === "today" ? "📅 Today" : "📅 Tomorrow"}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.tomorrowNotice}>
+                      <Text style={styles.tomorrowNoticeText}>📅 Ordering for tomorrow</Text>
+                      <Text style={styles.tomorrowNoticeReason}>Ordering window closes at 10:00 AM daily</Text>
+                    </View>
+                  )}
+                  <Text style={styles.slotNote}>Available: 11:00 AM – 5:00 PM</Text>
+                  <View style={styles.slotGrid}>
+                    {TIME_SLOTS.map((slot) => {
+                      const isSelected = selectedSlot === slot;
+                      return (
+                        <TouchableOpacity
+                          key={slot}
+                          onPress={() => setSelectedSlot(slot)}
+                          style={[styles.slotBtn, isSelected && styles.slotBtnSelected]}
+                        >
+                          <Text style={[styles.slotLabel, isSelected && styles.slotLabelSelected]}>
+                            {formatSlot(slot)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
             </WobblyCard>
 
             {/* Order summary — looks like a notepad tear-off */}
@@ -206,28 +262,23 @@ const styles = StyleSheet.create({
   footer: { gap: 16, marginTop: 8 },
   sectionCard: { padding: 16 },
   sectionTitle: { fontFamily: "Kalam_700Bold", fontSize: 18, color: colors.pencil, marginBottom: 12 },
-  // Time options
-  timeOptions: { gap: 8 },
-  timeOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 2,
-    borderColor: colors.pencil + "44",
-    borderRadius: 10,
-    borderStyle: "dashed",
-  },
-  timeOptionSelected: {
-    borderColor: colors.pencil,
-    borderStyle: "solid",
-    backgroundColor: colors.pencil + "08",
-  },
-  timeEmoji: { fontSize: 20 },
-  timeLabel: { fontFamily: "PatrickHand_400Regular", fontSize: 16, color: colors.pencil + "99", flex: 1 },
-  timeLabelSelected: { color: colors.pencil, fontFamily: "Kalam_700Bold" },
-  timeTick: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  // Time picker
+  timeLoading: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12 },
+  timeLoadingText: { fontFamily: "PatrickHand_400Regular", fontSize: 15, color: colors.pencil + "77" },
+  dateTabs: { flexDirection: "row", gap: 10, marginBottom: 14 },
+  dateTab: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: colors.pencil + "44", alignItems: "center", borderStyle: "dashed" },
+  dateTabSelected: { borderColor: colors.ink, backgroundColor: colors.ink + "11", borderStyle: "solid" },
+  dateTabLabel: { fontFamily: "PatrickHand_400Regular", fontSize: 15, color: colors.pencil + "88" },
+  dateTabLabelSelected: { fontFamily: "Kalam_700Bold", color: colors.ink },
+  tomorrowNotice: { backgroundColor: colors.ink + "11", borderRadius: 8, padding: 10, marginBottom: 14 },
+  tomorrowNoticeText: { fontFamily: "Kalam_700Bold", fontSize: 15, color: colors.ink },
+  tomorrowNoticeReason: { fontFamily: "PatrickHand_400Regular", fontSize: 13, color: colors.ink + "99", marginTop: 2 },
+  slotNote: { fontFamily: "PatrickHand_400Regular", fontSize: 13, color: colors.pencil + "77", marginBottom: 10 },
+  slotGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  slotBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 2, borderColor: colors.pencil + "33", borderStyle: "dashed" },
+  slotBtnSelected: { borderColor: colors.accent, backgroundColor: colors.accent + "15", borderStyle: "solid" },
+  slotLabel: { fontFamily: "PatrickHand_400Regular", fontSize: 14, color: colors.pencil + "88" },
+  slotLabelSelected: { fontFamily: "Kalam_700Bold", color: colors.accent },
   // Summary
   summaryTitle: { fontFamily: "Kalam_700Bold", fontSize: 18, color: colors.pencil, marginBottom: 10 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },

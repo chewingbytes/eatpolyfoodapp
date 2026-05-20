@@ -70,8 +70,6 @@ export async function storePushToken(
 }
 
 export async function scheduleLocalOrderNotification(
-  studentName: string,
-  orderId: string,
   collectionTime: Date
 ): Promise<void> {
   // Notify 5 minutes before collection time
@@ -80,11 +78,16 @@ export async function scheduleLocalOrderNotification(
 
   if (notifyAt <= now) return;
 
+  const slotStr = collectionTime.toLocaleTimeString("en-SG", {
+    timeZone: "Asia/Singapore",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "⏰ Time to collect your order!",
-      body: `Hey ${studentName}, your order ${orderId} is ready for collection soon!`,
-      data: { orderId },
+      body: `Your order is ready to collect at ${slotStr}, head over now!`,
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,

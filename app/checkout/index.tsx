@@ -13,17 +13,24 @@ import { colors } from "../../lib/theme";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-const COLLECTION_TIME_OFFSETS: Record<string, number> = { asap: 15, "30m": 30, "1h": 60, "2h": 120 };
-const COLLECTION_TIME_LABELS: Record<string, string> = {
-  asap: "As Soon As Possible 🔥",
-  "30m": "In ~30 Minutes ⏰",
-  "1h": "In ~1 Hour 🕐",
-  "2h": "In ~2 Hours 🕑",
-};
+function formatCollectionTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("en-SG", {
+      timeZone: "Asia/Singapore",
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
 
 export default function CheckoutScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const { studentName, collectionTime } = useLocalSearchParams<{ studentName: string; collectionTime: string }>();
+  const { collectionTime } = useLocalSearchParams<{ collectionTime: string }>();
   const { items, totalCents, clearCart } = useCartStore();
   const userId = useAuthStore((s) => s.user?.id);
   const [loading, setLoading] = useState(false);
@@ -35,7 +42,6 @@ export default function CheckoutScreen() {
   async function initSheet() {
     setLoading(true);
     try {
-      // Initialise Stripe here so the package isn't imported at app startup
       await initStripe({ publishableKey: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "" });
       pushTokenRef.current = await registerForPushNotifications();
       const response = await fetch(`${SUPABASE_URL}/functions/v1/create-payment-intent`, {
@@ -43,7 +49,7 @@ export default function CheckoutScreen() {
         headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({
           items: items.map((i) => ({ name: i.name, qty: i.qty, priceInCents: i.priceInCents })),
-          studentName, collectionTime,
+          collectionTime,
           storeId: items[0]?.storeId,
           storeName: items[0]?.storeName,
           expoPushToken: pushTokenRef.current ?? undefined,
@@ -61,6 +67,7 @@ export default function CheckoutScreen() {
         returnURL: "polyfoodapp://stripe-redirect",
         style: "alwaysLight",
         primaryButtonLabel: "Confirm PayNow Payment",
+        allowsDelayedPaymentMethods: true,
       });
       if (error) throw new Error(error.message);
       setReady(true);
@@ -76,12 +83,12 @@ export default function CheckoutScreen() {
     const { error } = await presentPaymentSheet();
     setLoading(false);
     if (error) {
-      if (error.code !== "Canceled") Alert.alert("Payment failed", error.message);
+      if (error.code !== "Canceled") Alert.alert("Payment failed", JSON.stringify(error, null, 2));
+      console.log(JSON.stringify(error, null, 2))
       return;
     }
-    if (studentName && collectionTime) {
-      const offsetMin = COLLECTION_TIME_OFFSETS[collectionTime] ?? 15;
-      await scheduleLocalOrderNotification(studentName, "#---", new Date(Date.now() + offsetMin * 60_000)).catch(() => {});
+    if (collectionTime) {
+      await scheduleLocalOrderNotification(new Date(collectionTime)).catch(() => {});
     }
     clearCart();
     router.replace("/checkout/success");
@@ -111,12 +118,8 @@ export default function CheckoutScreen() {
         <WobblyCard style={styles.detailsCard}>
           <Text style={styles.detailsTitle}>📦 collection details</Text>
           <View style={styles.detailRow}>
-            <Text style={styles.detailIcon}>👤</Text>
-            <Text style={styles.detailText}>{studentName}</Text>
-          </View>
-          <View style={styles.detailRow}>
             <Text style={styles.detailIcon}>⏱️</Text>
-            <Text style={styles.detailText}>{COLLECTION_TIME_LABELS[collectionTime] ?? collectionTime}</Text>
+            <Text style={styles.detailText}>{formatCollectionTime(collectionTime)}</Text>
           </View>
         </WobblyCard>
 

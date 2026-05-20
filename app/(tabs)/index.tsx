@@ -60,8 +60,8 @@ export default function MenuScreen() {
     const cartStoreId = cartItems[0]?.storeId;
     if (cartStoreId && cartStoreId !== product.store?._id) {
       Alert.alert(
-        "Different store",
-        "Your cart has items from another store. Clear it and add this item?",
+        "One Store Per Order",
+        "Each order is tied to a single store and time slot! \n\nTo add from this store, you'll need to either checkout your current cart or clear it first.",
         [
           { text: "Cancel", style: "cancel" },
           {
