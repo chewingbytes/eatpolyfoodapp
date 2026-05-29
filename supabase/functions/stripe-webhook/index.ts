@@ -156,8 +156,7 @@ Deno.serve(async (req: Request) => {
   console.log(`✅ Order ${shortOrderId} for ${JSON.stringify(meta, null, 2)} → store ${storeSanityId}`);
   // Send Expo push notification for mobile orders
   if (expoPushToken) {
-    const collectionDate = new Date(collectionTime);
-    const timeStr = collectionDate.toLocaleTimeString("en-SG", {
+    const timeStr = new Date(collectionTime).toLocaleTimeString("en-SG", {
       timeZone: "Asia/Singapore",
       hour: "2-digit",
       minute: "2-digit",

@@ -3,12 +3,16 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "rea
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/auth";
+import { useVendorStore } from "../../store/vendor";
 import { WobblyCard } from "../../components/ui/WobblyCard";
 import { HandButton } from "../../components/ui/HandButton";
 import { colors, wobbly } from "../../lib/theme";
 
 export default function ProfileScreen() {
   const { session, user, signOut } = useAuthStore();
+  const { isVendor, store } = useVendorStore();
+
+  console.log("ISVENDOR:", isVendor);
 
   async function handleSignOut() {
     Alert.alert("Sign out?", "See you next time! 👋", [
@@ -51,6 +55,11 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.displayName}>{displayName}</Text>
               <Text style={styles.email}>{user?.email}</Text>
+              {isVendor && (
+                <View style={styles.vendorBadge}>
+                  <Text style={styles.vendorBadgeText}>🏪 Vendor</Text>
+                </View>
+              )}
             </View>
           </WobblyCard>
         </View>
@@ -69,6 +78,26 @@ export default function ProfileScreen() {
             </View>
           </WobblyCard>
         </TouchableOpacity>
+
+        {/* Vendor shortcut — only visible to vendors */}
+        {isVendor && (
+          <TouchableOpacity onPress={() => router.push("/vendor")} activeOpacity={0.75}>
+            <WobblyCard style={styles.menuItem}>
+              <View style={styles.menuRow}>
+                <View style={[styles.menuIcon, { backgroundColor: colors.green + "22" }]}>
+                  <Ionicons name="storefront-outline" size={22} color={colors.green} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuLabel}>Manage My Store</Text>
+                  {store?.name ? (
+                    <Text style={styles.menuSub}>{store.name}</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.menuArrow}>→</Text>
+              </View>
+            </WobblyCard>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Sign out */}
@@ -116,6 +145,15 @@ const styles = StyleSheet.create({
   menuIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   menuLabel: { flex: 1, fontFamily: "PatrickHand_400Regular", fontSize: 18, color: colors.pencil },
   menuArrow: { fontFamily: "Kalam_700Bold", fontSize: 18, color: colors.pencil + "66" },
+  menuSub: { fontFamily: "PatrickHand_400Regular", fontSize: 14, color: colors.pencil + "77", marginTop: 1 },
+  vendorBadge: {
+    marginTop: 8,
+    paddingHorizontal: 14, paddingVertical: 5,
+    backgroundColor: colors.greenLight,
+    borderRadius: 20,
+    borderWidth: 1.5, borderColor: colors.green,
+  },
+  vendorBadgeText: { fontFamily: "Kalam_700Bold", fontSize: 15, color: "#15803d" },
   signOutSection: { marginBottom: 32 },
   footer: { fontFamily: "PatrickHand_400Regular", fontSize: 12, color: colors.muted, textAlign: "center" },
 });

@@ -1,10 +1,21 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { TouchableOpacity, View, Text, StyleSheet, Platform } from "react-native";
+import { Image, TouchableOpacity, View, Text, StyleSheet, Platform } from "react-native";
 import { router } from "expo-router";
 import { useCartStore } from "../../store/cart";
+import { useVendorStore } from "../../store/vendor";
 import { colors } from "../../lib/theme";
+
+function HeaderLogo() {
+  return (
+    <Image
+      source={require("../../assets/newlogo.png")}
+      style={{ width: 120, height: 36 }}
+      resizeMode="contain"
+    />
+  );
+}
 
 function CartHeaderButton() {
   const totalQty = useCartStore((s) => s.totalQty());
@@ -25,6 +36,8 @@ function CartHeaderButton() {
 }
 
 export default function TabsLayout() {
+  const isVendor = useVendorStore((s) => s.isVendor);
+
   return (
     <Tabs
       screenOptions={{
@@ -42,7 +55,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          title: "FoodAtPoly ✏️",
+          headerShown: false,
           tabBarLabel: "Home",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "home" : "home-outline"} size={26} color={color} />
@@ -52,8 +65,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Menu 🍽️",
-          tabBarLabel: "Menu",
+          title: "Browse Canteens",
+          tabBarLabel: "Canteens",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "restaurant" : "restaurant-outline"} size={26} color={color} />
           ),
@@ -83,6 +96,18 @@ export default function TabsLayout() {
           tabBarLabel: "Profile",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "person" : "person-outline"} size={26} color={color} />
+          ),
+        }}
+      />
+      {/* Vendor-only "Manage" tab — hidden for regular users */}
+      <Tabs.Screen
+        name="vendor"
+        options={{
+          href: isVendor ? "/vendor" : null,
+          title: "My Store",
+          tabBarLabel: "My Store",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "storefront" : "storefront-outline"} size={26} color={color} />
           ),
         }}
       />

@@ -18,8 +18,8 @@ function formatCollectionTime(iso: string): string {
     return new Date(iso).toLocaleString("en-SG", {
       timeZone: "Asia/Singapore",
       weekday: "short",
-      day: "numeric",
       month: "short",
+      day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -29,8 +29,8 @@ function formatCollectionTime(iso: string): string {
 }
 
 export default function CheckoutScreen() {
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { collectionTime } = useLocalSearchParams<{ collectionTime: string }>();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { items, totalCents, clearCart } = useCartStore();
   const userId = useAuthStore((s) => s.user?.id);
   const [loading, setLoading] = useState(false);
@@ -49,9 +49,9 @@ export default function CheckoutScreen() {
         headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({
           items: items.map((i) => ({ name: i.name, qty: i.qty, priceInCents: i.priceInCents })),
-          collectionTime,
           storeId: items[0]?.storeId,
           storeName: items[0]?.storeName,
+          collectionTime: collectionTime ?? undefined,
           expoPushToken: pushTokenRef.current ?? undefined,
           userId: userId ?? undefined,
         }),
@@ -88,7 +88,7 @@ export default function CheckoutScreen() {
       return;
     }
     if (collectionTime) {
-      await scheduleLocalOrderNotification(new Date(collectionTime)).catch(() => {});
+      scheduleLocalOrderNotification(new Date(collectionTime)).catch(() => {});
     }
     clearCart();
     router.replace("/checkout/success");
@@ -115,13 +115,15 @@ export default function CheckoutScreen() {
         </WobblyCard>
 
         {/* Collection details */}
-        <WobblyCard style={styles.detailsCard}>
-          <Text style={styles.detailsTitle}>📦 collection details</Text>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailIcon}>⏱️</Text>
-            <Text style={styles.detailText}>{formatCollectionTime(collectionTime)}</Text>
-          </View>
-        </WobblyCard>
+        {collectionTime ? (
+          <WobblyCard style={styles.detailsCard}>
+            <Text style={styles.detailsTitle}>📦 collection details</Text>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailIcon}>📅</Text>
+              <Text style={styles.detailText}>{formatCollectionTime(collectionTime)}</Text>
+            </View>
+          </WobblyCard>
+        ) : null}
 
         {/* PayNow info */}
         <WobblyCard style={styles.paynowCard} bg={colors.ink + "11"}>
@@ -165,9 +167,9 @@ const styles = StyleSheet.create({
   totalAmt: { fontFamily: "Kalam_700Bold", fontSize: 22, color: colors.accent },
   detailsCard: { padding: 16 },
   detailsTitle: { fontFamily: "Kalam_700Bold", fontSize: 18, color: colors.pencil, marginBottom: 12 },
-  detailRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
+  detailRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   detailIcon: { fontSize: 20 },
-  detailText: { fontFamily: "PatrickHand_400Regular", fontSize: 17, color: colors.pencil },
+  detailText: { fontFamily: "PatrickHand_400Regular", fontSize: 16, color: colors.pencil, flex: 1 },
   paynowCard: { padding: 16 },
   paynowTitle: { fontFamily: "Kalam_700Bold", fontSize: 18, color: colors.ink, marginBottom: 8 },
   paynowText: { fontFamily: "PatrickHand_400Regular", fontSize: 15, color: colors.ink + "cc", lineHeight: 22 },

@@ -34,7 +34,7 @@ export function WobblyCard({
 
   return (
     <View style={[styles.wrapper, { marginBottom: shadowSize, marginRight: shadowSize }]}>
-      {/* Hard shadow layer */}
+      {/* Hard shadow layer — must extend into the margin the wrapper reserves */}
       <View
         style={[
           styles.shadow,
@@ -43,6 +43,8 @@ export function WobblyCard({
             backgroundColor: shadowColor,
             top: shadowSize,
             left: shadowSize,
+            right: -shadowSize,
+            bottom: -shadowSize,
           },
         ]}
       />
@@ -73,10 +75,6 @@ const styles = StyleSheet.create({
   },
   shadow: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
   card: {
     borderWidth: 2.5,

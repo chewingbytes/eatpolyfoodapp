@@ -12,7 +12,14 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://gkeehrgtctyblnhedbmw.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrZWVocmd0Y3R5YmxuaGVkYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNDI0MTUsImV4cCI6MjA5MzYxODQxNX0.Ts0CDnFFDXgLSG7EaVBUjQD-qc0t16kCZxMhisRkfwA",
+        "EXPO_PUBLIC_SANITY_PROJECT_ID": "rvz48yuz",
+        "EXPO_PUBLIC_SANITY_DATASET": "production",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51TTPNgPq3VyoDePqD9qGI8PQXWtwjGnXbsClM6MM3GnbtgQ3BANzbg0yRnyjJqiRUZ1Owjx3OnVytA0xS3cfHcep00XtXNK8b9"
+      }
     }
   },
   "submit": {

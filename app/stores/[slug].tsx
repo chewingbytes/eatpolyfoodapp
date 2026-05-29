@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { sanityFetch } from "../../lib/sanity";
@@ -11,18 +11,20 @@ import { useCartStore } from "../../store/cart";
 import { StickyBadge } from "../../components/ui/StickyBadge";
 import { colors } from "../../lib/theme";
 
-const CATEGORY_LABELS: Record<string, string> = {
-  main: "🍚 Main Dishes",
-  side: "🥗 Sides",
-  beverage: "🧋 Beverages",
-  dessert: "🍰 Desserts",
-  snack: "🍟 Snacks",
-};
+function getDefaultPriceCents(product: FoodProduct): number {
+  if (product.portionOptions && product.portionOptions.length > 0) {
+    const def = product.portionOptions.find((o) => o.isDefault) ?? product.portionOptions[0];
+    return def.priceInCents;
+  }
+  return product.price ? Math.round(product.price * 100) : 0;
+}
 
 function ProductRow({ product, storeId, storeName }: { product: FoodProduct; storeId: string; storeName: string }) {
   const addItem = useCartStore((s) => s.addItem);
   const cartItems = useCartStore((s) => s.items);
   const cartItem = cartItems.find((i) => i.id === product._id);
+  const priceCents = getDefaultPriceCents(product);
+  const hasMultiplePortions = (product.portionOptions?.length ?? 0) > 1;
 
   function handleAdd() {
     const currentStoreId = cartItems[0]?.storeId;
@@ -32,11 +34,11 @@ function ProductRow({ product, storeId, storeName }: { product: FoodProduct; sto
         "Your cart has items from another stall. Clear it and add this?",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Clear & Add ✓", style: "destructive", onPress: () => addItem({ id: product._id, name: product.name, priceInCents: Math.round(product.price * 100), qty: 1, storeId, storeName }) },
+          { text: "Clear & Add ✓", style: "destructive", onPress: () => addItem({ id: product._id, name: product.name, priceInCents: priceCents, qty: 1, storeId, storeName }) },
         ]
       );
     } else {
-      addItem({ id: product._id, name: product.name, priceInCents: Math.round(product.price * 100), qty: 1, storeId, storeName });
+      addItem({ id: product._id, name: product.name, priceInCents: priceCents, qty: 1, storeId, storeName });
     }
   }
 
@@ -52,10 +54,12 @@ function ProductRow({ product, storeId, storeName }: { product: FoodProduct; sto
         <Text style={styles.productName}>{product.name}</Text>
         {product.description && <Text style={styles.productDesc} numberOfLines={2}>{product.description}</Text>}
         {product.preparationTime && <Text style={styles.productPrepTime}>⏱ ~{product.preparationTime} min</Text>}
-        <Text style={styles.productPrice}>${product.price.toFixed(2)}</Text>
+        <Text style={styles.productPrice}>{hasMultiplePortions ? "from " : ""}${(priceCents / 100).toFixed(2)}</Text>
       </View>
       <View style={styles.productRight}>
-        <SanityImage url={product.image?.asset?.url} style={styles.productImage as any} />
+        <View style={styles.productImageWrap}>
+          <SanityImage url={product.image?.asset?.url} style={styles.productImage as any} />
+        </View>
         <TouchableOpacity onPress={handleAdd} style={[styles.addBtn, cartItem ? styles.addBtnFilled : {}]}>
           {cartItem ? (
             <Text style={styles.addBtnQty}>{cartItem.qty}</Text>
@@ -77,11 +81,13 @@ export default function StoreScreen() {
   const [error, setError] = useState<string | null>(null);
   const totalQty = useCartStore((s) => s.totalQty());
   const totalCents = useCartStore((s) => s.totalCents());
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   async function fetchData() {
     try {
       const result = await sanityFetch<StoreWithProducts>(STORE_QUERY, { slug });
       setData(result);
+      console.log("SETDATA:", JSON.stringify(result, null, 2));
       if (result?.name) navigation.setOptions({ title: result.name });
       setError(null);
     } catch (e: any) {
@@ -94,28 +100,37 @@ export default function StoreScreen() {
 
   useEffect(() => { if (slug) fetchData(); }, [slug]);
 
-  const sections = useMemo(() => {
-    if (!data?.products?.length) return [];
-    const grouped: Record<string, FoodProduct[]> = {};
-    for (const p of data.products) {
-      const cat = p.category ?? "main";
-      if (!grouped[cat]) grouped[cat] = [];
-      grouped[cat].push(p);
+  // Unique categories derived from the product list, preserving order
+  const categories = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { _id: string; name: string; emoji?: string | null }[] = [];
+    for (const p of data?.products ?? []) {
+      const cat = p.category;
+      if (cat?._id && !seen.has(cat._id)) {
+        seen.add(cat._id);
+        list.push({ _id: cat._id, name: cat.name, emoji: cat.emoji });
+      }
     }
-    return Object.entries(grouped).map(([key, items]) => ({ title: CATEGORY_LABELS[key] ?? key, data: items }));
+    return list;
   }, [data?.products]);
+
+  const filteredProducts = useMemo(() => {
+    const all = data?.products ?? [];
+    if (!activeCategory) return all;
+    return all.filter((p) => p.category?._id === activeCategory);
+  }, [data?.products, activeCategory]);
 
   if (loading) return <LoadingView />;
   if (error || !data) return <ErrorView message={error ?? "Not found"} onRetry={fetchData} />;
 
   return (
     <View style={styles.container}>
-      <SectionList
-        sections={sections}
+      <FlatList
+        data={filteredProducts}
         keyExtractor={(item) => item._id}
-        stickySectionHeadersEnabled
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.accent} />}
         contentContainerStyle={{ paddingBottom: totalQty > 0 ? 100 : 24 }}
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View>
             <SanityImage url={data.image?.asset?.url} style={styles.storeHeroImage as any} />
@@ -132,13 +147,43 @@ export default function StoreScreen() {
               {data.description && <Text style={styles.storeDesc}>{data.description}</Text>}
               <View style={styles.dashedLine} />
             </View>
+            {/* Category filter chips — only shown when there are 2+ categories */}
+            {categories.length > 1 && (
+              <View style={styles.chipSection}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.chipRow}
+                >
+                  <TouchableOpacity
+                    style={[styles.chip, !activeCategory && styles.chipActive]}
+                    onPress={() => setActiveCategory(null)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.chipText, !activeCategory && styles.chipTextActive]}>
+                      All
+                    </Text>
+                  </TouchableOpacity>
+                  {categories.map((cat) => (
+                    <TouchableOpacity
+                      key={cat._id}
+                      style={[styles.chip, activeCategory === cat._id && styles.chipActive]}
+                      onPress={() => setActiveCategory(activeCategory === cat._id ? null : cat._id)}
+                      activeOpacity={0.75}
+                    >
+                      <Text
+                        style={[styles.chipText, activeCategory === cat._id && styles.chipTextActive]}
+                        numberOfLines={1}
+                      >
+                        {cat.emoji ? `${cat.emoji} ` : ""}{cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
         }
-        renderSectionHeader={({ section }) => (
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-          </View>
-        )}
         renderItem={({ item }) => (
           <ProductRow product={item} storeId={data._id} storeName={data.name} />
         )}
@@ -171,9 +216,33 @@ const styles = StyleSheet.create({
   storeCuisine: { fontFamily: "PatrickHand_400Regular", fontSize: 14, color: colors.pencil + "88" },
   storeDesc: { fontFamily: "PatrickHand_400Regular", fontSize: 15, color: colors.pencil + "99", marginTop: 8, lineHeight: 22 },
   dashedLine: { borderBottomWidth: 2, borderStyle: "dashed", borderColor: colors.pencil + "33", marginTop: 14 },
-  // Section header
-  sectionHeader: { backgroundColor: colors.muted + "aa", paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1.5, borderBottomColor: colors.pencil + "22" },
-  sectionTitle: { fontFamily: "Kalam_700Bold", fontSize: 18, color: colors.pencil },
+  // Category chip filter
+  chipSection: {
+    backgroundColor: colors.paper,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.pencil + "11",
+  },
+  chipRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  chip: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: colors.pencil + "44",
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 16,
+    borderBottomLeftRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  chipText: { fontFamily: "PatrickHand_400Regular", fontSize: 14, color: colors.pencil },
+  chipTextActive: { color: "#fff", fontFamily: "Kalam_700Bold" },
   // Product row
   productRow: { flexDirection: "row", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1.5, borderBottomColor: colors.pencil + "11", backgroundColor: colors.paper },
   productInfo: { flex: 1, paddingRight: 8 },
@@ -184,7 +253,8 @@ const styles = StyleSheet.create({
   productPrepTime: { fontFamily: "PatrickHand_400Regular", fontSize: 12, color: colors.pencil + "55", marginTop: 4 },
   productPrice: { fontFamily: "Kalam_700Bold", fontSize: 18, color: colors.ink, marginTop: 6 },
   productRight: { alignItems: "center", gap: 8 },
-  productImage: { width: 80, height: 80, borderRadius: 12, borderWidth: 2, borderColor: colors.muted },
+  productImageWrap: { width: 80, height: 80, borderRadius: 12, borderWidth: 2, borderColor: colors.muted, overflow: "hidden" },
+  productImage: { width: "100%", height: "100%", borderRadius: 10 },
   addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.pencil, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.pencil },
   addBtnFilled: { backgroundColor: colors.accent, borderColor: colors.accent },
   addBtnQty: { fontFamily: "Kalam_700Bold", fontSize: 15, color: colors.paper },

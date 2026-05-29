@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -32,10 +32,12 @@ export default function ScanStoreScreen() {
   const [scanning, setScanning] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerifyResult | null>(null);
+  const scanLock = useRef(false);
 
   const handleScan = useCallback(
     async ({ data }: { data: string }) => {
-      if (!scanning || loading) return;
+      if (scanLock.current || loading) return;
+      scanLock.current = true;
       setScanning(false);
       setLoading(true);
       try {
@@ -54,9 +56,11 @@ export default function ScanStoreScreen() {
         setResult({ status: "error", message: "Could not verify order. Please try again." });
       } finally {
         setLoading(false);
+        // Release lock after 5 s so a retry scan can't fire immediately
+        setTimeout(() => { scanLock.current = false; }, 5000);
       }
     },
-    [scanning, loading]
+    [loading]
   );
 
   // Permission not determined yet
@@ -126,7 +130,7 @@ export default function ScanStoreScreen() {
           {result.status !== "success" && (
             <TouchableOpacity
               style={styles.retryBtn}
-              onPress={() => { setResult(null); setScanning(true); }}
+              onPress={() => { scanLock.current = false; setResult(null); setScanning(true); }}
             >
               <Text style={styles.retryLabel}>Try Again</Text>
             </TouchableOpacity>

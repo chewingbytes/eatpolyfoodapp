@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -59,8 +60,11 @@ export default function SignupScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.emoji}>🍱</Text>
-          <Text style={styles.title}>Join FoodAtPoly!</Text>
+          <Image
+            source={require("../../assets/newlogo.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={styles.subtitle}>pre-order canteen food, skip the queue</Text>
           <View style={styles.dashedLine} />
         </View>
@@ -75,7 +79,7 @@ export default function SignupScreen() {
           />
           <WobblyInput
             label="Email ✉️"
-            placeholder="student@poly.edu.sg"
+            placeholder="Your Email"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -117,6 +121,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
   header: { alignItems: "center", marginBottom: 32 },
+  logo: { width: 180, height: 120, marginBottom: 8 },
   emoji: { fontSize: 56, marginBottom: 12 },
   title: { fontFamily: "Kalam_700Bold", fontSize: 32, color: colors.pencil, textAlign: "center" },
   subtitle: { fontFamily: "PatrickHand_400Regular", fontSize: 16, color: colors.pencil + "88", marginTop: 6 },

@@ -11,13 +11,13 @@ import {
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCartStore } from "../../store/cart";
+import { sanityFetch } from "../../lib/sanity";
 import { WobblyCard } from "../../components/ui/WobblyCard";
-
 import { HandButton } from "../../components/ui/HandButton";
 import { StickyBadge } from "../../components/ui/StickyBadge";
 import { colors, wobblyMd } from "../../lib/theme";
 
-const TIME_SLOTS = [
+const FALLBACK_SLOTS = [
   "11:00", "11:30", "12:00", "12:30",
   "13:00", "13:30", "14:00", "14:30",
   "15:00", "15:30", "16:00", "16:30",
@@ -56,22 +56,40 @@ async function fetchServerTime(): Promise<Date> {
 
 export default function CartScreen() {
   const { items, removeItem, updateQty, totalCents } = useCartStore();
+
   const [serverTime, setServerTime] = useState<Date | null>(null);
   const [loadingTime, setLoadingTime] = useState(true);
   const [canOrderToday, setCanOrderToday] = useState(false);
   const [selectedDate, setSelectedDate] = useState<"today" | "tomorrow">("tomorrow");
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [timeSlots, setTimeSlots] = useState<string[]>(FALLBACK_SLOTS);
 
+  const storeId = items[0]?.storeId ?? null;
+
+  // Fetch server time and store time slots in parallel
   useEffect(() => {
-    fetchServerTime().then((t) => {
+    let cancelled = false;
+    Promise.all([
+      fetchServerTime(),
+      storeId
+        ? sanityFetch<{ timeSlots: string[] | null }>(
+            `*[_type == "store" && _id == $storeId][0]{ timeSlots }`,
+            { storeId }
+          ).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([t, storeData]) => {
+      if (cancelled) return;
       const sgtHour = toSGT(t).getUTCHours();
       const before10am = sgtHour < 10;
       setServerTime(t);
       setCanOrderToday(before10am);
       setSelectedDate(before10am ? "today" : "tomorrow");
+      const slots = storeData?.timeSlots?.length ? storeData.timeSlots : FALLBACK_SLOTS;
+      setTimeSlots(slots);
       setLoadingTime(false);
     });
-  }, []);
+    return () => { cancelled = true; };
+  }, [storeId]);
 
   if (items.length === 0) {
     return (
@@ -125,7 +143,27 @@ export default function CartScreen() {
             <View style={styles.cartItemInner}>
               <View style={styles.cartItemInfo}>
                 <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemPrice}>${(item.priceInCents / 100).toFixed(2)} each</Text>
+                {item.addOns?.length ? (
+                  <View style={styles.breakdown}>
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>base</Text>
+                      <Text style={styles.breakdownAmt}>
+                        ${((item.basePriceInCents ?? item.priceInCents) / 100).toFixed(2)}
+                      </Text>
+                    </View>
+                    {item.addOns.map((ao, i) => (
+                      <View key={i} style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel} numberOfLines={1}>+ {ao.name}</Text>
+                        <Text style={styles.breakdownAmt}>
+                          {ao.priceInCents === 0 ? "free" : `$${(ao.priceInCents / 100).toFixed(2)}`}
+                        </Text>
+                      </View>
+                    ))}
+                    <Text style={styles.itemPrice}>${(item.priceInCents / 100).toFixed(2)} each</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.itemPrice}>${(item.priceInCents / 100).toFixed(2)} each</Text>
+                )}
               </View>
               <View style={styles.qtyRow}>
                 <TouchableOpacity
@@ -169,7 +207,7 @@ export default function CartScreen() {
                           style={[styles.dateTab, selectedDate === d && styles.dateTabSelected]}
                         >
                           <Text style={[styles.dateTabLabel, selectedDate === d && styles.dateTabLabelSelected]}>
-                            {d === "today" ? "📅 Today" : "📅 Tomorrow"}
+                            {d === "today" ? "Today" : "Tomorrow"}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -180,9 +218,9 @@ export default function CartScreen() {
                       <Text style={styles.tomorrowNoticeReason}>Ordering window closes at 10:00 AM daily</Text>
                     </View>
                   )}
-                  <Text style={styles.slotNote}>Available: 11:00 AM – 5:00 PM</Text>
+                  <Text style={styles.slotNote}>Available: {timeSlots.length ? `${formatSlot(timeSlots[0])} – ${formatSlot(timeSlots[timeSlots.length - 1])}` : ""}</Text>
                   <View style={styles.slotGrid}>
-                    {TIME_SLOTS.map((slot) => {
+                    {timeSlots.map((slot) => {
                       const isSelected = selectedSlot === slot;
                       return (
                         <TouchableOpacity
@@ -252,7 +290,11 @@ const styles = StyleSheet.create({
   cartItemInner: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   cartItemInfo: { flex: 1 },
   itemName: { fontFamily: "Kalam_700Bold", fontSize: 17, color: colors.pencil },
-  itemPrice: { fontFamily: "PatrickHand_400Regular", fontSize: 15, color: colors.ink, marginTop: 2 },
+  itemPrice: { fontFamily: "PatrickHand_400Regular", fontSize: 15, color: colors.ink, marginTop: 4 },
+  breakdown: { marginTop: 4, gap: 1 },
+  breakdownRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  breakdownLabel: { fontFamily: "PatrickHand_400Regular", fontSize: 13, color: colors.pencil + "77", flex: 1 },
+  breakdownAmt: { fontFamily: "PatrickHand_400Regular", fontSize: 13, color: colors.pencil + "77" },
   qtyRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   qtyBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: colors.pencil, alignItems: "center", justifyContent: "center" },
   qtyBtnAdd: { backgroundColor: colors.pencil },

@@ -1,10 +1,17 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+export interface CartItemAddOn {
+  name: string;
+  priceInCents: number;
+}
+
 export interface CartItem {
   id: string;          // Sanity _id of foodProduct
   name: string;
-  priceInCents: number; // SGD cents, e.g. 450 = $4.50
+  priceInCents: number; // SGD cents per item, including add-ons (e.g. 450 = $4.50)
+  basePriceInCents?: number; // base price before add-ons
+  addOns?: CartItemAddOn[];  // selected add-ons for display breakdown
   qty: number;
   storeId: string;     // Sanity _id of store
   storeName: string;

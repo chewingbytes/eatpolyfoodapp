@@ -4,11 +4,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { sanityFetch } from "../../lib/sanity";
 import { WobblyCard } from "../../components/ui/WobblyCard";
@@ -40,12 +38,11 @@ type SanityStore = {
   } | null;
 };
 
-// const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string; emoji: string; rotate: string }> = {
-//   paid:      { bg: colors.postit,     text: colors.pencil,      label: "Pending",             emoji: "👨‍🍳", rotate: "-1deg" },
-//   ready:     { bg: colors.greenLight, text: "#166534",           label: "Ready! 🎉 Collect now", emoji: "✅",   rotate: "1deg"  },
-//   collected: { bg: colors.muted,      text: colors.pencil + "88", label: "Collected",            emoji: "✔️",  rotate: "0deg"  },
-//   cancelled: { bg: "#fee2e2",         text: colors.accent,       label: "Cancelled",             emoji: "✖️", rotate: "-0.5deg" },
-// };
+const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string; emoji: string; rotate: string }> = {
+  pending:   { bg: colors.postit,     text: colors.pencil,       label: "Pending",    emoji: "👨\u200d🍳", rotate: "-1deg"   },
+  collected: { bg: colors.greenLight,      text: colors.pencil + "88", label: "Collected", emoji: "✔️",         rotate: "0deg"    },
+  expired:   { bg: "#f3f4f6",         text: "#6b7280",           label: "Expired",    emoji: "⌛",         rotate: "0.5deg"  },
+};
 
 const STEP_BG = ["#e0f2fe", "#fef9c3", "#dcfce7"];
 
@@ -69,6 +66,7 @@ export default function OrderDetailScreen() {
       .single();
 
     if (error || !data) { setLoading(false); return; }
+    console.log("DATA:", data);
     setOrder(data as Order);
 
     // Fetch store info from Sanity
@@ -109,7 +107,15 @@ export default function OrderDetailScreen() {
     );
   }
 
-//   const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.paid;
+  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.pending;
+  const badgeLabel =
+    order.status === "pending" && order.collection_time
+      ? `${cfg.emoji} Collect at ${new Date(order.collection_time).toLocaleTimeString("en-SG", {
+          timeZone: "Asia/Singapore",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`
+      : `${cfg.emoji} ${cfg.label}`;
   const items: OrderItem[] = Array.isArray(order.items) ? order.items : [];
   const totalCents = items.reduce((sum, i) => sum + (i.priceInCents ?? 0) * i.qty, 0);
   const hasPrices = items.some((i) => i.priceInCents != null);
@@ -131,12 +137,12 @@ export default function OrderDetailScreen() {
             <Text style={styles.orderIdLabel}>order</Text>
             <Text style={styles.orderId}>{order.short_order_id}</Text>
           </View>
-          {/* <StickyBadge
-            label={`${cfg.emoji} ${cfg.label}`}
+          <StickyBadge
+            label={badgeLabel}
             bg={cfg.bg}
             color={cfg.text}
             rotate={cfg.rotate}
-          /> */}
+          />
         </View>
         <Text style={styles.placedAt}>
           placed on {new Date(order.created_at).toLocaleString("en-SG", {
@@ -169,17 +175,13 @@ export default function OrderDetailScreen() {
       <WobblyCard bg={STEP_BG[1]} style={styles.stepCard}>
         <View style={styles.stepHeader}>
           <View style={styles.stepCircle}><Text style={styles.stepNum}>2</Text></View>
-          <Text style={styles.stepTitle}>scan the store QR code</Text>
+          <Text style={styles.stepTitle}>show your order number</Text>
         </View>
-        <TouchableOpacity
-          style={styles.scanBtn}
-          onPress={() => router.push({ pathname: "/scan-store", params: { orderId: order.id } })}
-          activeOpacity={0.82}
-        >
-          <Ionicons name="qr-code-outline" size={28} color="#fff" />
-          <Text style={styles.scanBtnLabel}>Scan Store QR Code</Text>
-        </TouchableOpacity>
-        <Text style={styles.scanBtnSub}>Point your camera at the QR code displayed at the store counter</Text>
+        <View style={styles.orderNumDisplay}>
+          <Text style={styles.orderNumLabel}>your order number</Text>
+          <Text style={styles.orderNumBig}>{order.short_order_id}</Text>
+          <Text style={styles.orderNumHint}>show this to the vendor at the counter</Text>
+        </View>
       </WobblyCard>
 
       {/* Step 3 */}
@@ -264,19 +266,26 @@ const styles = StyleSheet.create({
   storeName: { fontFamily: "Kalam_700Bold", fontSize: 18, color: colors.pencil },
   storeDetail: { fontFamily: "PatrickHand_400Regular", fontSize: 14, color: colors.pencil + "88" },
 
-  // QR
-  scanBtn: {
-    flexDirection: "row",
+  // Order number display
+  orderNumDisplay: {
     alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    backgroundColor: colors.ink,
     paddingVertical: 16,
-    borderRadius: 14,
-    marginTop: 4,
+    paddingHorizontal: 12,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 2.5,
+    borderColor: colors.pencil,
+    gap: 6,
+    // Hard shadow
+    shadowColor: colors.pencil,
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
   },
-  scanBtnLabel: { fontFamily: "Kalam_700Bold", fontSize: 18, color: "#fff" },
-  scanBtnSub: { fontFamily: "PatrickHand_400Regular", fontSize: 13, color: colors.pencil + "77", textAlign: "center", marginTop: 10 },
+  orderNumLabel: { fontFamily: "PatrickHand_400Regular", fontSize: 14, color: colors.pencil + "88", textTransform: "uppercase", letterSpacing: 1 },
+  orderNumBig: { fontFamily: "Kalam_700Bold", fontSize: 40, color: colors.pencil, letterSpacing: 4, lineHeight: 66 },
+  orderNumHint: { fontFamily: "PatrickHand_400Regular", fontSize: 14, color: colors.pencil + "77", textAlign: "center" },
 
   // Summary
   summaryCard: { padding: 16 },

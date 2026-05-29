@@ -49,7 +49,9 @@ export default function CanteenScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.accent} />}
         ListHeaderComponent={
           <View style={styles.header}>
-            <SanityImage url={data.image?.asset?.url} style={styles.headerImage as any} />
+            <View style={styles.headerImageWrap}>
+              <SanityImage url={data.image?.asset?.url} style={styles.headerImage as any} />
+            </View>
             <Text style={styles.headerTitle}>Stalls in {data.name}</Text>
             {data.location && <Text style={styles.headerLocation}>📍 {data.location}</Text>}
             <View style={styles.dashedLine} />
@@ -60,7 +62,9 @@ export default function CanteenScreen() {
           <TouchableOpacity onPress={() => router.push(`/stores/${item.slug}`)} activeOpacity={0.85}
             style={{ transform: [{ rotate: ROTATIONS[index % ROTATIONS.length] }] }}>
             <WobblyCard shadowSize={5}>
-              <SanityImage url={item.image?.asset?.url} style={styles.storeImage as any} />
+              <View style={styles.storeImageWrap}>
+                <SanityImage url={item.image?.asset?.url} style={styles.storeImage as any} />
+              </View>
               <View style={styles.storeBody}>
                 <View style={styles.storeHeaderRow}>
                   <View style={styles.storeTitleCol}>
@@ -88,11 +92,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   list: { padding: 20, gap: 20, paddingBottom: 40 },
   header: { marginBottom: 4 },
-  headerImage: { width: "100%", height: 160, borderRadius: 16, marginBottom: 12, borderWidth: 2.5, borderColor: colors.pencil },
+  headerImageWrap: { width: "100%", height: 160, borderRadius: 16, borderWidth: 2.5, borderColor: colors.pencil, overflow: "hidden", marginBottom: 12 },
+  headerImage: { width: "100%", height: "100%", borderRadius: 13 },
   headerTitle: { fontFamily: "Kalam_700Bold", fontSize: 24, color: colors.pencil },
   headerLocation: { fontFamily: "PatrickHand_400Regular", fontSize: 14, color: colors.pencil + "88", marginTop: 4 },
   dashedLine: { borderBottomWidth: 2, borderStyle: "dashed", borderColor: colors.pencil + "33", marginVertical: 10 },
-  storeImage: { width: "100%", height: 150 },
+  storeImageWrap: { width: "100%", height: 150, overflow: "hidden", borderTopLeftRadius: 30, borderTopRightRadius: 10 },
+  storeImage: { width: "100%", height: 150, borderTopLeftRadius: 30, borderTopRightRadius: 10 },
   storeBody: { padding: 14 },
   storeHeaderRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   storeTitleCol: { flex: 1 },
